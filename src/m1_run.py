@@ -194,7 +194,7 @@ for m in g['unmatched']:
     say("      ×", m)
 
 # ---------- 7. 合规循环：禁用词 + 输出层档位断言（任一违规→改写≤2→复检） ----------
-from src.render.compliance import sanitize, output_tier_lint
+from src.render.compliance import sanitize, output_tier_lint, footer_block
 text = sanitize(g['text'])
 
 def violations_report(bh, tv):
@@ -250,10 +250,11 @@ def strip_disclaimer(t):
                      if x.strip() and not any(p in x for p in DISC_PATS)).strip()
 body = strip_disclaimer(text)
 body_hits = sum(body.count(p) for p in DISC_PATS)
-final_text = body + '\n\n' + DISCLAIMER
+final_text = body + '\n\n' + DISCLAIMER + '\n' + footer_block(PRODUCT, FN)   # 数据来源+时点，代码拼接（D053）
 n_dis = final_text.count('仅供教学研究使用')
 say(f"[7b] 免责去重: 正文残留免责短语 {body_hits} 次（须=0）、'仅供教学研究使用' {n_dis} 次（须=1）")
 assert body_hits == 0 and n_dis == 1, f"免责重复未消除: body_hits={body_hits} n_dis={n_dis}"
+assert '数据来源：' in final_text and '获取时点：' in final_text, "页脚数据来源/获取时点缺失"
 
 # ---------- 落盘 ----------
 open(os.path.join(OUT, 'narrative_raw.txt'), 'w', encoding='utf-8').write(resp['content'])

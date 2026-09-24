@@ -5,7 +5,7 @@
   关键值（数字级 source）、画像表
 - index.html：切画像→按 order 重排 DOM；切年度→图表/表格高亮；数字零硬编码
 - 可见文本抽取后跑与 final_verify 同一套 lint（禁词/档位/区间/覆盖/源/保障责任+回引）
-运行：python src/h5_build.py
+运行：python src/h5_build.py ["<产品名>" "<场景文件名>"]   # 换产品零改码（D056）
 """
 import os, sys, json, re
 
@@ -20,11 +20,15 @@ from src.render.compliance import sanitize, output_tier_lint
 from src.render.trace import trace
 from src.render import banned_scan
 from src.render.report import module_block, MODULE_TITLES, MODULE_IDS
+from src.render.compliance import footer_block
 from src.llm.client import load_config
 
 DATA = load_config(os.path.join(ROOT, 'config.yaml'))['data']['benefit_data']
-PRODUCT = '国寿鑫益延年养老年金保险（分红型）'
-FN = '国寿鑫益延年养老年金保险（分红型）,男，30，10.json'
+# 产品/场景可从命令行传入（换产品零改码的 H5 证明入口，D056）：
+#   python src/h5_build.py ["<产品名>" "<场景文件名>"]
+# 默认 = 鑫益延年(男,30,10)（m3 对比组同场景）。
+PRODUCT = sys.argv[1] if len(sys.argv) > 1 else '国寿鑫益延年养老年金保险（分红型）'
+FN = sys.argv[2] if len(sys.argv) > 2 else '国寿鑫益延年养老年金保险（分红型）,男，30，10.json'
 DISCLAIMER = ("本材料仅供教学研究使用，演示利益基于假设、不代表未来实际收益，"
               "红利分配不确定，具体以保险公司正式条款及保险单为准。")
 M3DIRS = {'p_retiree': 'output/m3/cmp_p_retiree', 'p_analyst': 'output/m3/cmp_p_analyst',
@@ -73,13 +77,24 @@ def main():
             out_lines.append({'text': ln2, 'source': src})
         modules[mid] = {'title': title, 'lines': out_lines}
 
-    # ---- 各画像 order / lead / 模块句（来自 m3 真实产物）----
+    # ---- 各画像 order / lead / 模块句（来自 m3 真实产物；换产品时 m3 manifest 不匹配 → 默认序+空句回退，D056）----
     profiles = []
     for pid, d in M3DIRS.items():
-        man = json.load(open(os.path.join(ROOT, d, 'manifest.json'), encoding='utf-8'))
-        profiles.append({'id': pid, 'name': PROFILE_META[pid]['name'],
-                         'order': man['order'], 'lead': sanitize(man['lead']),
-                         'sentences': {k: sanitize(v) for k, v in (man.get('sentences') or {}).items()}})
+        mp = os.path.join(ROOT, d, 'manifest.json')
+        man = json.load(open(mp, encoding='utf-8')) if os.path.exists(mp) else None
+        if man and man.get('product') == PRODUCT and man.get('fn') == FN:
+            profiles.append({'id': pid, 'name': PROFILE_META[pid]['name'],
+                             'order': man['order'], 'lead': sanitize(man['lead']),
+                             # 只保留会渲染的句子（module_block 为 None 的模块页面跳过），
+                             # 否则从不渲染的死角句（如 m_disclaimer）进可见文本 lint 暴雷（D058）
+                             'sentences': {k: sanitize(v) for k, v in (man.get('sentences') or {}).items()
+                                           if k in modules},
+                             'src': 'm3'})
+        else:
+            from src.render.report import validate_order as _vo
+            od, _ = _vo(None)
+            profiles.append({'id': pid, 'name': PROFILE_META[pid]['name'],
+                             'order': od, 'lead': '', 'sentences': {}, 'src': 'default'})
 
     # ---- 年度序列（点级 source）----
     def seq(field, tier_field=None):
@@ -122,10 +137,11 @@ def main():
         'drops': [{'key': d['key'], 'from': d['from'], 'to': d['to'],
                    'source': f"身故保险金@{d['key']}"} for d in by['给付比例变化年']],
         'data_source': '课程作业材料 利益演示数据（教学研究用途）',
+        'footer': footer_block(PRODUCT, FN),   # 数据来源+获取时点两行，代码拼接（D053）
     }
 
-    # ---- 可见文本 lint（复用 final_verify 同一套）----
-    texts = [payload['disclaimer'], payload['product']]
+    # ---- 可见文本 lint（复用 final_verify 同一套；页脚入检，require_footer=True）----
+    texts = [payload['disclaimer'], payload['product'], payload['footer']]
     for p in profiles:
         texts.append(p['lead'])
         texts.extend(p['sentences'].values())
@@ -135,7 +151,7 @@ def main():
     visible = '\n'.join(texts)
     ky = set(range(0, 130)) | set(map(int, rec['现金价值']))
     bh = banned_scan.scan(visible)
-    tv = output_tier_lint(visible, S['records'], ky)
+    tv = output_tier_lint(visible, S['records'], ky, require_footer=True)
     um, mt = trace(visible, S['records'], known_years=ky)
     print(f"[H5 lint] 可见文本 {len(visible)} 字 | 禁词={len(bh)} 断言={len(tv)} 回引 unmatched={len(um)}")
     for x in bh[:5]:

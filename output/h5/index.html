@@ -70,7 +70,8 @@ function init() {
   $('#pTitle').textContent = D.product;
   const m = D.meta;
   $('#pMeta').textContent = `${m['性别']} · 投保${m['年龄']}岁 · 交费${m['交费期间']}年 · (key=保单年度末年龄)`;
-  $('#foot').textContent = D.disclaimer + ' 数据来源：' + D.data_source;
+  $('#foot').textContent = D.footer ? (D.disclaimer + '\n' + D.footer)
+                                    : (D.disclaimer + ' 数据来源：' + D.data_source);
   const sel = $('#profileSel');
   D.profiles.forEach((p, i) => {
     const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; sel.appendChild(o);

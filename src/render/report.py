@@ -3,7 +3,7 @@
 LLM 只贡献 lead 与每模块一句画像化解读（过 guard/断言后嵌入）。
 """
 import re
-from .compliance import sanitize
+from .compliance import sanitize, footer_block
 
 MODULE_IDS = ['m_basics', 'm_cashflow', 'm_guarantee', 'm_dividend',
               'm_irr', 'm_death', 'm_claims', 'm_disclaimer']   # SPEC §9 白名单（默认序）
@@ -93,4 +93,5 @@ def assemble(meta, order, S, rec, by, lead, sentences, disclaimer):
         if blk:
             segs.append(blk)
     segs.append(disclaimer)
+    segs.append(footer_block(meta['产品'], meta['文件']))   # 数据来源+获取时点，代码拼接（D053）
     return sanitize("\n\n".join(segs))

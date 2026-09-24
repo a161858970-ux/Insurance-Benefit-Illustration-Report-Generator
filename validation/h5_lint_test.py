@@ -34,6 +34,9 @@ for k in ('modules', 'profiles', 'series', 'spotlights', 'ages', 'boundary'):
 print(f"[1] 结构: {'√' if not fails else '×'} keys={sorted(d.keys())}")
 
 # 2) 数字回溯：series 点/spotlight 的 (value, source) → 源 JSON 字段@key 值一致
+#    产品/场景优先从 data.json 自读（硬编码值仅作旧版回退，换产品零改码，D056）
+PRODUCT = d.get('product', PRODUCT)
+FN = d.get('meta', {}).get('文件', FN)
 rec, meta = load_scenario(DATA, PRODUCT, FN)
 S = build_summary(rec, meta)
 def src_value(field, key):
@@ -92,8 +95,10 @@ print(f"[3] 硬编码检查: {'√ 源码0硬编码金额' if not hard else '× 
 if hard:
     fails.append(f"index.html 硬编码金额: {hard[:6]}")
 
-# 4) 可见文本 lint（复用同一套）
+# 4) 可见文本 lint（复用同一套；页脚入检，产品/场景已在 [2] 从 data.json 自读，D056）
 texts = [d['disclaimer'], d['product']]
+if d.get('footer'):
+    texts.append(d['footer'])
 for p in d['profiles']:
     texts.append(p['lead']); texts.extend(p['sentences'].values())
 for m in d['modules'].values():
@@ -101,8 +106,8 @@ for m in d['modules'].values():
 visible = '\n'.join(texts)
 ky = set(range(0, 130))
 bh = banned_scan.scan(visible)
-tv = output_tier_lint(visible, S['records'], ky)
-print(f"[4] 可见文本 lint: 禁词={len(bh)} 断言={len(tv)}")
+tv = output_tier_lint(visible, S['records'], ky, require_footer=bool(d.get('footer')))
+print(f"[4] 可见文本 lint: 禁词={len(bh)} 断言={len(tv)} 页脚={'√' if d.get('footer') else '旧版无footer'}")
 for x in bh: fails.append(f"禁词 {x}")
 for x in tv: fails.append(f"断言 {x}")
 

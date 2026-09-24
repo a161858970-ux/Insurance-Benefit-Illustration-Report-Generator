@@ -9,6 +9,16 @@ import re
 
 NUM_RE = re.compile(r'-?\d[\d,，]*(?:\.\d+)?')
 
+# 页脚标识行（M5：数据来源+获取时点，由渲染层代码拼接，非 LLM 文本）。
+# 页脚含产品名/场景文件名（数字如"30，10"会被 NUM_RE 并成无出处 token）与
+# "利益演示数据"字样（触发档位窗口），故回引/档位/泄漏检查一律先剥页脚行，
+# 改为对页脚"存在性"单独断言（compliance.source_lint(require_footer=True)）。
+FOOTER_RE = re.compile(r'(?m)^\s*(?:数据来源|获取时点)：.*$')
+
+def strip_footer(text):
+    """剥除数据来源/获取时点两行页脚标识文本（D053）。"""
+    return FOOTER_RE.sub('', text)
+
 def _desc(r):
     return f"{r['field']}@{r['key']}" + ("(万元换算)" if r.get('wanyuan') else "") + f"[{r['tier']}]"
 
@@ -21,8 +31,9 @@ def trace(text, records, known_years=None):
 
     unmatched, matched = [], []
     years = known_years or set()
+    text = strip_footer(text)   # 页脚标识行不参与回引（文件名数字无摘要出处，D053）
     # 数字间 ASCII 连字符归一为区间破折号：防 "60-104" 被切成 "60" + "-104"（等长替换，坐标不变）
-    norm_text = re.sub(r'(?<=\d)-(?=\d)', '\u2013', text)
+    norm_text = re.sub(r'(?<=\d)-(?=\d)', '–', text)
     text = norm_text
     for m in NUM_RE.finditer(text):
         raw = m.group(0)

@@ -50,9 +50,9 @@ def run_modular(product, fn, outdir, prof, log=print):
     S = build_summary(rec, meta)
     ky = set(map(int, rec['现金价值'])) | set(range(0, 120))
 
-    def lint_text(text):
+    def lint_text(text, require_footer=True):
         bh = banned_scan.scan(text)
-        tv = output_tier_lint(text, S['records'], ky)
+        tv = output_tier_lint(text, S['records'], ky, require_footer=require_footer)
         um, _mt = trace(text, S['records'], known_years=ky)
         return bh, tv, um
 
@@ -82,6 +82,29 @@ def run_modular(product, fn, outdir, prof, log=print):
     assert obj and 'lead' in obj, f"narrative JSON 失败: {(nr.get('content') or str(nr.get('error')))[:200]}"
     lead, sentences = obj.get('lead', ''), obj.get('sentences', {})
     log(f"    narrative: lead={lead[:36]}… 句={len(sentences)}")
+
+    # 2.5) 句子级三查（D058）：含从不渲染的 m_disclaimer 句——原实现只查终稿渲染正文，
+    # 死角句带违规入库，H5 汇总可见文本时才暴雷。改写 ≤2 轮复检，仍不过则终态 ok=False。
+    from src.render.compliance import probe_violations
+    for _pr in range(3):
+        _probe = "\n".join([lead] + [v for v in sentences.values()])
+        _pbh, _ptv, _pum = probe_violations(_probe, S['records'], ky)
+        if not (_pbh or _ptv or _pum):
+            break
+        log(f"    句查第{_pr + 1}轮: 禁词{len(_pbh)} 断言{len(_ptv)} 回引{len(_pum)} → 改写")
+        _reasons = ([f"禁用词句：『{h['context']}』含“{h['word']}”——只改这句" for h in _pbh] +
+                    [f"{v.get('kind')}违规：『{v.get('clause')}』 {v.get('need', v.get('src', v.get('num', '')))}——只改这一句"
+                     for v in _ptv] +
+                    [f"数字 {rv} 无出处/AMBIG（{dv}）——写明字段名，只改这一句" for rv, dv in _pum])
+        # 单句 surgical 修改 → 关思考（实测 495s vs 6s；D050 的开思考仅针对整稿重写）
+        _fix = llm.chat('你是合规改写者。',
+                        u_n + "\n\n【合规重写】**只修改下面指出的句子，lead 与其余句子逐字保留**，只输出 JSON：\n- "
+                              + "\n- ".join(_reasons[:8]),
+                        max_tokens=6000, temperature=0.1, thinking=False)
+        _o2 = try_parse_obj(_fix.get('content') or '') if 'error' not in _fix else None
+        if _o2:
+            lead, sentences = _o2.get('lead', lead), _o2.get('sentences', sentences)
+    probe_ok = not (_pbh or _ptv or _pum)
 
     # 3) 终验循环（六道断言：回引/禁词/档位/区间/覆盖/源+保障责任）
     final = None
@@ -113,7 +136,7 @@ def run_modular(product, fn, outdir, prof, log=print):
     n_dis = final.count('仅供教学研究使用')
     body = final.replace(DISCLAIMER, '')
     n_left = sum(body.count(x) for x in ['仅供教学研究使用', '演示利益基于假设', '不代表未来实际收益', '红利分配不确定'])
-    ok = not (bh or tv or um) and n_dis == 1 and n_left == 0
+    ok = not (bh or tv or um) and n_dis == 1 and n_left == 0 and probe_ok
     log(f"    终验: 回引{len(um)} 禁词{len(bh)} 断言{len(tv)} 免责{n_dis}/{n_left} -> {'通过' if ok else '不通过'}")
     for v in tv[:5]:
         log(f"      × {v}")

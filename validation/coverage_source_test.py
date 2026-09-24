@@ -4,6 +4,8 @@
 ② coverage：福临门旧稿缺 37/39/30000（特别生存金未呈现）→ 必须拦截；
 ③ source：终稿含"（源：保费@31..40）"→ sanitize 剥除 + source_lint 拦截；
    且"（区间 60–104 岁、共 45 个保单年度）"必须保留（B 条依赖）。
+④ footer（M5/D053）：数据来源+获取时点页脚存在性坏样本 5 例
+   （缺页脚拦 / 半截页脚拦 / 齐全放行且子串不误杀 / 正文泄漏仍拦 / 片段级不强求）。
 运行：python validation/coverage_source_test.py
 """
 import sys, os
@@ -61,4 +63,61 @@ print(f"{'√' if ok2 else '×'} ② 福临门稿缺特别生存金被拦截: {v
 print(f"{'√' if ok2b else '×'} ② 补齐后放行: {v2b}")
 print(f"{'√' if ok3 else '×'} ③ 源标注: 拦截={v3_before} 剥除后={v3_after}")
 print(f"{'√' if ok3_keep else '×'} ③ 区间标签保留: {clean!r}")
-sys.exit(0 if all([ok1, ok1b, ok2, ok2b, ok3, ok3_keep]) else 1)
+# ④ 数据来源+获取时点页脚（M5 / 作业合规清单第2条，D053）——坏样本拦截证明
+from src.render.compliance import source_lint as _sl, footer_block as _fb
+
+body_only = "您好，这是一份根据您情况准备的利益说明。\n在保单第1年末，保证的现金价值为4064元。"
+# ④-a 缺页脚 → require_footer=True 必须拦截（缺数据来源+缺获取时点 = 2 条）
+v4a = _sl(body_only, require_footer=True)
+ok4a = len(v4a) == 2 and {x['num'] for x in v4a} == {'数据来源：', '获取时点：'}
+# ④-b 只有数据来源行、缺获取时点 → 拦截（防半截页脚蒙混）
+v4b = _sl(body_only + "\n数据来源：课程作业材料《利益演示数据/》给定 JSON（p，f.json）", require_footer=True)
+ok4b = len(v4b) == 1 and v4b[0]['num'] == '获取时点：'
+# ④-c 页脚齐全 → 放行；且页脚"数据来源："含裸"源："子串不得误判为内部泄漏
+full = body_only + "\n" + _fb('国寿鑫益延年养老年金保险（分红型）', '国寿鑫益延年养老年金保险（分红型）,男，30，10.json')
+v4c = _sl(full, require_footer=True)
+ok4c = not v4c
+# ④-d 正文真泄漏 + 页脚齐全 → 仍必须拦截（先剥页脚再查，不掩盖正文泄漏）
+leaky = "现金价值4064元（源：现金价值@31）。\n" + _fb('国寿鑫益延年养老年金保险（分红型）', '国寿鑫益延年养老年金保险（分红型）,男，30，10.json')
+v4d = _sl(leaky, require_footer=True)
+ok4d = len(v4d) == 1 and v4d[0]['num'] == '源：'
+# ④-e require_footer=False（片段级调用，如 probe）不得强求页脚
+v4e = _sl(body_only, require_footer=False)
+ok4e = not v4e
+
+print(f"{'√' if ok4a else '×'} ④-a 缺页脚被拦截: {[(x['clause'], x['num']) for x in v4a]}")
+print(f"{'√' if ok4b else '×'} ④-b 缺获取时点被拦截: {[(x['clause'], x['num']) for x in v4b]}")
+print(f"{'√' if ok4c else '×'} ④-c 页脚齐全放行（'数据来源：'子串不误杀）: {v4c}")
+print(f"{'√' if ok4d else '×'} ④-d 正文真泄漏+页脚齐全仍拦截: {v4d}")
+print(f"{'√' if ok4e else '×'} ④-e 片段级调用不强求页脚: {v4e}")
+
+# ⑤ 句子级三查坏样本（M5/D058）：从不渲染的 m_disclaimer 死角句必须被句查拦截
+from src.render.compliance import probe_violations as _pv
+
+recs_t = [
+    {'field': 'IRR.bzhl', 'key': '105', 'tier': 'guar', 'variants': {'1.65'},
+     'hints': {'IRR', '复利', '保证'}, 'wanyuan': False},
+    {'field': 'IRR.hl', 'key': '105', 'tier': 'demo', 'variants': {'2.51'},
+     'hints': {'IRR', '复利', '演示'}, 'wanyuan': False},
+]
+# ⑤-a 实抓坏句（p_analyst m_disclaimer 死角句）：1.65 保证档落在演示语境 → 必拦
+dead_bad = "保证与演示差额由IRR复利1.65%与2.51%量化。"
+_, tv5, _ = _pv(dead_bad, recs_t, set(range(0, 120)))
+ok5a = any(v.get('kind') == 'tier' and v.get('num') == '1.65' for v in tv5)
+# ⑤-b 修正写法（两档显式分述）→ 放行
+dead_good = "保证档IRR复利为1.65%，演示档IRR复利为2.51%（演示、不保证）。"
+_, tv5b, _ = _pv(dead_good, recs_t, set(range(0, 120)))
+ok5b = not tv5b
+# ⑤-c 文档级 coverage 不得误伤片段（这正是句查与终稿 lint 的分界）
+recs_flow = [{'field': '年金', 'key': '40..104', 'tier': 'guar', 'variants': {'3030'},
+              'hints': {'年金', '合计'}, 'wanyuan': False, 'kind': 'amount',
+              'is_range': True, 'is_flow': True, 'range_tokens': {'40', '104', '65'}}]
+_, tvc, _ = _pv("每年领取年金491元。", recs_flow, set(range(0, 120)))
+ok5c = not any(v.get('kind') == 'coverage' for v in tvc)
+
+print(f"{'√' if ok5a else '×'} ⑤-a 死角句 tier 违规被句查拦截: {tv5}")
+print(f"{'√' if ok5b else '×'} ⑤-b 两档分述句放行: {tv5b}")
+print(f"{'√' if ok5c else '×'} ⑤-c 文档级 coverage 不误伤片段: {[v for v in tvc if v.get('kind')=='coverage']}")
+
+sys.exit(0 if all([ok1, ok1b, ok2, ok2b, ok3, ok3_keep, ok4a, ok4b, ok4c, ok4d, ok4e,
+                   ok5a, ok5b, ok5c]) else 1)

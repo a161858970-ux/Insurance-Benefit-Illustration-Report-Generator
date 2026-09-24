@@ -9,4 +9,4 @@
  "focus": ["m_cashflow", "m_claims", "m_basics"]}
 {"id": "p_default", "name": "中性标准版", "desc": "通用客户：既要看清确定的部分，也要理解不确定的部分；不需要特定侧重，按报告逻辑自然展开。",
  "style": "平实中性、先方案后利益、口径清晰；不偏口语也不堆术语。",
- "focus": ["m_basics", "m_guarantee"]}
+ "focus": ["m_basics", "m_guarantee"], "compare": false}

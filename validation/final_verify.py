@@ -34,12 +34,13 @@ for mf in manifests:
     text = open(nf, encoding='utf-8').read()
     um, mt = trace(text, S['records'], known_years=ky)
     bh = banned_scan.scan(text)
-    tv = output_tier_lint(text, S['records'], ky)   # 档位窗口 + 区间绑定 双断言
+    tv = output_tier_lint(text, S['records'], ky, require_footer=True)   # 档位+区间+覆盖+源(含页脚存在性) 双断言
     n_dis = text.count('仅供教学研究使用')
     body = text.replace(DISC_BLOCK, '')
     n_left = sum(body.count(p) for p in DISC)
     md = '**' in text
-    ok = not um and not bh and not tv and n_dis == 1 and n_left == 0 and not md
+    has_footer = ('数据来源：' in text and '获取时点：' in text)
+    ok = not um and not bh and not tv and n_dis == 1 and n_left == 0 and not md and has_footer
     allok &= ok
     tier_n = sum(1 for v in tv if v.get('kind') == 'tier')
     rng_n = sum(1 for v in tv if v.get('kind') == 'range')
@@ -47,7 +48,7 @@ for mf in manifests:
     src_n = sum(1 for v in tv if v.get('kind') == 'source')
     print(f"== {man['product'][:14]}|{re.split(r'[,，]', man['fn'])[1]}: 回引 unmatched={len(um)} matched={len(mt)} | "
           f"禁词={len(bh)} | 档位={tier_n} 区间={rng_n} 覆盖={cov_n} 源标注={src_n} | "
-          f"免责 块={n_dis}/残留={n_left} | md={md} -> {'通过' if ok else '不通过'}")
+          f"免责 块={n_dis}/残留={n_left} | 页脚={'√' if has_footer else '×'} | md={md} -> {'通过' if ok else '不通过'}")
     for raw, d in um[:5]:
         print("   × unmatched:", raw, d)
     for v in tv[:5]:

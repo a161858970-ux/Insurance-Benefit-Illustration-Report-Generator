@@ -32,6 +32,8 @@ while _i < len(_pf):
         break
     obj, _i = _dec.raw_decode(_pf, _sp)
     PROFILES.append(obj)
+# M3 对比组 = 3 个客户画像；p_default（M4 引入的中性画像，compare:false）只服务9 份正式产物，不进对比组（D057）
+PROFILES = [x for x in PROFILES if x.get('compare', True)]
 if len(sys.argv) > 1:   # 画像过滤：python src/m3_compare.py p_analyst,p_parents
     keep = set(sys.argv[1].split(','))
     PROFILES = [x for x in PROFILES if x['id'] in keep]
@@ -51,9 +53,9 @@ def parse_json_array(t):
     m = re.search(r'\[.*\]', t, re.S)
     return json.loads(m.group(0)) if m else None
 
-def lint_text(text):
+def lint_text(text, require_footer=False):
     bh = banned_scan.scan(text)
-    tv = output_tier_lint(text, S['records'], ky)
+    tv = output_tier_lint(text, S['records'], ky, require_footer=require_footer)
     um, _ = trace(text, S['records'], known_years=ky)
     return bh, tv, um
 
@@ -105,26 +107,33 @@ for prof in PROFILES:
 
     # ---- 3) 组装 + 全套断言（lead+句 逐条回引/禁词/档位；整稿 coverage/源/区间/免责） ----
     raw = assemble(meta, order, S, rec, by, lead, sentences, DISCLAIMER)
-    # lead/句 先过 guard 式回引（把违规句交给 LLM 改写一次）
-    probe = "\n".join([lead] + [v for v in sentences.values()])
-    bh, tv, um = lint_text(probe)
-    if bh or tv or um:
-        say(f"    首版违规: 禁词{len(bh)} 档位/区间/覆盖{len(tv)} 回引{len(um)} -> 改写")
+    # lead/句 先过句子级三查（含从不渲染的 m_disclaimer 句）→ 改写循环复检 ≤3 轮（D058：
+    # 原实现只改一次不复检，改写可能引入新违规并绕过终验——因为终验只查渲染后正文）
+    from src.render.compliance import probe_violations
+    for _pr in range(4):
+        probe = "\n".join([lead] + [v for v in sentences.values()])
+        bh, tv, um = probe_violations(probe, S['records'], ky)
+        if not (bh or tv or um):
+            break
+        say(f"    句查第{_pr + 1}轮: 禁词{len(bh)} 断言{len(tv)} 回引{len(um)} -> 改写")
+        # 句查是单句 surgical 修改（轻任务）→ 关思考：实测 thinking=True 495s / False 6s；
+        # D050 的"改写开思考"针对整稿长 JSON 重写，不适用于此（D058）
         fix = llm.chat('你是合规改写者。',
                        u_n + f"\n\n【合规重写】上一版问题：禁用词={sorted({h['word'] for h in bh})}；"
                              f"断言={[v.get('need', v.get('src', v.get('clause'))) for v in tv]}；"
                              f"无出处数字={[x[0] for x in um]}。逐条改正，只输出 JSON。",
-                       max_tokens=4800, temperature=0.1)
+                       max_tokens=4800, temperature=0.1, thinking=False)
         obj2 = try_parse(fix.get('content') or '') if 'error' not in fix else None
         if obj2:
             lead, sentences = obj2.get('lead', lead), obj2.get('sentences', sentences)
         else:
             say(f"    改写返回异常({fix.get('error', 'JSON解析失败')})，保留当前版本继续")
+    probe_ok = not (bh or tv or um)
     # 终验循环：整稿违规 → 改写 lead/模块句 → 重组（≤3 轮）
     final = None
     for attempt in range(4):
         final = assemble(meta, order, S, rec, by, lead, sentences, DISCLAIMER)
-        bh2, tv2, um2 = lint_text(final)
+        bh2, tv2, um2 = lint_text(final, require_footer=True)
         if not (bh2 or tv2 or um2):
             break
         if attempt == 3:
@@ -147,19 +156,19 @@ for prof in PROFILES:
         fix = llm.chat('你是合规改写者。',
                        u_n + "\n\n【合规重写】**只修改下面指出的句子，lead 与其余句子逐字保留**，只输出 JSON：\n- "
                              + "\n- ".join(reasons[:8]),
-                       max_tokens=4800, temperature=0.1)
+                       max_tokens=4800, temperature=0.1, thinking=True)   # 改写轮开思考（D050）
         obj2 = try_parse(fix.get('content') or '') if 'error' not in fix else None
         if obj2:
             lead, sentences = obj2.get('lead', lead), obj2.get('sentences', sentences)
         else:
             say(f"    改写返回异常({fix.get('error', 'JSON解析失败')})，保留当前版本继续")
 
-    # 整稿断言（终态）
-    bh2, tv2, um2 = lint_text(final)
+    # 整稿断言（终态）+ 句子级三查通过（D058：死角句也必须干净）
+    bh2, tv2, um2 = lint_text(final, require_footer=True)
     n_dis = final.count('仅供教学研究使用')
     body = final.replace(DISCLAIMER, '')
     n_left = sum(body.count(p) for p in ['仅供教学研究使用', '演示利益基于假设', '不代表未来实际收益', '红利分配不确定'])
-    ok = not bh2 and not tv2 and not um2 and n_dis == 1 and n_left == 0
+    ok = not bh2 and not tv2 and not um2 and n_dis == 1 and n_left == 0 and probe_ok
     say(f"    终验: 回引{len(um2)} 禁词{len(bh2)} 断言{len(tv2)} 免责{n_dis}/{n_left} -> {'通过' if ok else '不通过'}")
     for v in tv2[:4]:
         say("      ×", v)
@@ -178,6 +187,9 @@ say("=" * 70)
 say("[三份并排对比]")
 for pid, order, valid, ok in results:
     say(f"  {pid}: 序={ '→'.join(m[2:] for m in order) } 合法={'√' if valid else '回退'} 终验={'过' if ok else '未过'}")
-allok = all(v and ok for _, _, v, ok in results)
-say("M3 对比组:", "3/3 通过" if allok else "存在未过")
+_filtered = len(sys.argv) > 1          # 有过滤参数（合法开发入口）时期望数=过滤结果数
+_expect = len(results) if _filtered else 3   # 无参数全量跑：对比组恒为 3 画像（D057）
+allok = all(v and ok for _, _, v, ok in results) and len(results) == _expect and len(results) >= 1
+say("M3 对比组:", f"{sum(1 for _,_,v,ok in results if v and ok)}/{_expect} 通过"
+    if allok else f"{sum(1 for _,_,v,ok in results if v and ok)}/{len(results)} 存在未过")
 sys.exit(0 if allok else 1)

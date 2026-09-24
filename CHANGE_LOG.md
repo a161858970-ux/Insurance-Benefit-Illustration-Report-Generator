@@ -48,3 +48,13 @@
 - git status clean、config.yaml 未被跟踪、无临时/调试残留（_tmp 脚本已清）
 - README.md 从占位（3 字节）更新为交接入口：运行命令、验证入口、进度表、M5 下一步、硬约定、踩坑速查
 - 当前状态：M1–M3 已验收，M4 已交付待验收，M5 未开始（验证报告 VERIFICATION.md 为 M5 主缺口）
+
+## 2026-09-24 M5 文档与验证报告（收口）
+- 总控验收 M4 通过（7 脚本 fresh 全 0、全残三份回源逐字一致、12 份独立重算全过、H5 真人浏览器冒烟补做）
+- 数据来源+获取时点页脚（合规清单第2条，12/12 原缺）：footer_block 代码拼接，source_lint 双向断言 + 5 坏样本；连修三坑（"源："子串误杀、文件名数字无出处、档位窗口误触）→ D053/D056
+- m3 三份 mimo-v2.5-pro → mimo-v2.6-flash 全量重跑，12 份模型统一；改写轮补 thinking=True → D054
+- H5 通用性：h5_build 产品/场景命令行参数化，换中意(增额寿)前后页面标题+首行数字实测变化、index.html sha256 字节不变、换后 lint 6/6 → D055
+- 重跑发现并修复：m3 混入 p_default 多产第 4 份 + "3/3"硬编码打印恒真 → compare:false + 数量入判定 → D057
+- h5_build 暴雷挖出 lint 死角：m_disclaimer 句从不渲染绕过终验，p_analyst 死角句带 tier 违规 → 新增句子级三查 probe_violations + m3/modular 句查轮 + h5 只入会渲染句 + 3 坏样本 → D058
+- 交付文档齐：VERIFICATION.md（6 节+合规清单10条逐条）、SPEC §10 落点、DECISIONS 至 D058、README 重写（输入输出/什么算做完）
+- 终态：7 脚本全 0（coverage_source_test 14/14）、12/12 终验全过（页脚√）、勾稽 A/B/C 基线一致失败=0
