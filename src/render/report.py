@@ -85,7 +85,7 @@ def module_block(mid, S, meta, rec, by, sentences):
     elif mid == 'm_claims':
         drops = by['给付比例变化年']
         parts.append(f"- 首年：{by['首年']} 岁 | 缴费期满年：{by['缴费期满年']} 岁 | 起领年：{by['起领年']} 岁 | 满期年：{by['满期年']} 岁")
-        parts.append(f"- 给付比例变化年：共 {len(drops)} 个（首个 {drops[0]['key']} 岁：{int(drops[0]['from']):,}→{int(drops[0]['to']):,} 元）" if drops else "- 给付比例变化年：无")
+        parts.append(f"- 给付比例变化年：共 {len(drops)} 个（首个 {drops[0]['key']} 岁：身故保险金 {int(drops[0]['from']):,}→{int(drops[0]['to']):,} 元）" if drops else "- 给付比例变化年：无")
     elif mid == 'm_disclaimer':
         return None   # 免责块由组装方统一附加
     if not parts:

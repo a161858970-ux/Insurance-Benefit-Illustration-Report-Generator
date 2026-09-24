@@ -32,6 +32,9 @@ while _i < len(_pf):
         break
     obj, _i = _dec.raw_decode(_pf, _sp)
     PROFILES.append(obj)
+if len(sys.argv) > 1:   # 画像过滤：python src/m3_compare.py p_analyst,p_parents
+    keep = set(sys.argv[1].split(','))
+    PROFILES = [x for x in PROFILES if x['id'] in keep]
 llm = MiMo(load_config(os.path.join(ROOT, 'config.yaml')))
 
 rec, meta = load_scenario(DATA, PRODUCT, FN)
@@ -69,7 +72,7 @@ for prof in PROFILES:
     say(f"    合法排列={'√' if valid else '× 回退默认序'} -> {order}")
 
     # ---- 2) narrative_modular：lead + 每模块句 ----
-    tmpl_n = open(os.path.join(ROOT, 'prompts', 'narrative_modular_v1.md'), encoding='utf-8').read()
+    tmpl_n = open(os.path.join(ROOT, 'prompts', 'narrative_modular_v2.md'), encoding='utf-8').read()
     u_n = (tmpl_n.replace('{profile_text}', prof['desc'])
                  .replace('{style}', prof['style'])
                  .replace('{summary_text}', S['text'])
@@ -87,13 +90,16 @@ for prof in PROFILES:
 
     nr = llm.chat('你是保险利益演示报告文案撰写者，只输出 JSON。', u_n, max_tokens=4800, temperature=0.4)
     assert 'error' not in rr, nr
-    obj = try_parse(nr['content'])
+    obj = try_parse(nr.get('content') or '') if 'error' not in nr else None
     attempts = 1
-    while obj is None and attempts <= 2:
+    while obj is None and attempts <= 4:
         nr = llm.chat('你是保险利益演示报告文案撰写者，只输出 JSON。',
-                      u_n + '\n\n【重试】上一版不是合法 JSON，只输出 JSON 对象。', max_tokens=4800, temperature=0.1)
-        obj = try_parse(nr['content']); attempts += 1
-    assert obj and 'lead' in obj, f"narrative_modular JSON 解析失败: {nr['content'][:300]}"
+                      u_n + '\n\n【重试】上一版为空或不是合法 JSON。忽略一切思考过程，直接输出 JSON 对象。',
+                      max_tokens=4800, temperature=0.3)
+        obj = try_parse(nr.get('content') or '') if isinstance(nr, dict) else None
+        attempts += 1
+    _dbg = nr.get('content') or str(nr.get('error'))[:300] if isinstance(nr, dict) else str(nr)[:300]
+    assert obj and 'lead' in obj, f"narrative_modular JSON 解析失败: {_dbg}"
     lead, sentences = obj.get('lead', ''), obj.get('sentences', {})
     say(f"    narrative: lead={lead[:40]}… 模块句={len(sentences)} 个")
 
@@ -109,9 +115,11 @@ for prof in PROFILES:
                              f"断言={[v.get('need', v.get('src', v.get('clause'))) for v in tv]}；"
                              f"无出处数字={[x[0] for x in um]}。逐条改正，只输出 JSON。",
                        max_tokens=4800, temperature=0.1)
-        obj2 = try_parse(fix['content'])
+        obj2 = try_parse(fix.get('content') or '') if 'error' not in fix else None
         if obj2:
             lead, sentences = obj2.get('lead', lead), obj2.get('sentences', sentences)
+        else:
+            say(f"    改写返回异常({fix.get('error', 'JSON解析失败')})，保留当前版本继续")
     # 终验循环：整稿违规 → 改写 lead/模块句 → 重组（≤3 轮）
     final = None
     for attempt in range(4):
@@ -122,16 +130,29 @@ for prof in PROFILES:
         if attempt == 3:
             break
         say(f"    终验违规第{attempt + 1}轮: 禁词{len(bh2)} 断言{len(tv2)} 回引{len(um2)} -> 改写")
-        reasons = ([f"禁用词{sorted({h['word'] for h in bh2})}"] +
-                   [f"{v.get('kind')}: {v.get('clause')} {v.get('need', v.get('src', v.get('num', '')))}" for v in tv2] +
-                   [f"无出处/AMBIG数字: {[x[0] for x in um2]}"])
+        # surgical 改写：指出违规句原文+AMBIG 候选字段，只准改被指出的句子
+        def _find_sent(tok):
+            for ss in re.split(r'[。！？\n]', final):
+                if re.search(r'(?<!\d)' + re.escape(tok).replace(',', r'[,，]') + r'(?!\d)', ss):
+                    return ss.strip()
+            return tok
+        reasons = []
+        for h in bh2:
+            reasons.append(f"禁用词句：『{h['context']}』含禁用词“{h['word']}”——只改这一句")
+        for v in tv2:
+            reasons.append(f"{v.get('kind')}违规句：『{v.get('clause')}』 {v.get('need', v.get('src', v.get('num', '')))}——只改这一句")
+        for raw, desc in um2:
+            reasons.append(f"『{_find_sent(raw)}』中的 {raw} 无法确定字段归属，候选：{desc}——"
+                           f"若指现金价值就写明“现金价值”，若指身故就写明“身故保险金”，只改这一句")
         fix = llm.chat('你是合规改写者。',
-                       u_n + "\n\n【合规重写】整稿存在以下问题，逐条改正（模块句中数字必须带上其字段名以便溯源，"
-                             f"如“现金价值峰值”“身故保险金”），只输出 JSON：\n- " + "\n- ".join(reasons[:8]),
+                       u_n + "\n\n【合规重写】**只修改下面指出的句子，lead 与其余句子逐字保留**，只输出 JSON：\n- "
+                             + "\n- ".join(reasons[:8]),
                        max_tokens=4800, temperature=0.1)
-        obj2 = try_parse(fix['content'])
+        obj2 = try_parse(fix.get('content') or '') if 'error' not in fix else None
         if obj2:
             lead, sentences = obj2.get('lead', lead), obj2.get('sentences', sentences)
+        else:
+            say(f"    改写返回异常({fix.get('error', 'JSON解析失败')})，保留当前版本继续")
 
     # 整稿断言（终态）
     bh2, tv2, um2 = lint_text(final)
@@ -148,7 +169,8 @@ for prof in PROFILES:
     outdir = os.path.join(ROOT, 'output', 'm3', f"cmp_{prof['id']}")
     os.makedirs(outdir, exist_ok=True)
     open(os.path.join(outdir, 'narrative_final.txt'), 'w', encoding='utf-8').write(final)
-    json.dump({'product': PRODUCT, 'fn': FN, 'profile': prof['id'], 'order': order, 'order_valid': valid},
+    json.dump({'product': PRODUCT, 'fn': FN, 'profile': prof['id'], 'order': order, 'order_valid': valid,
+               'lead': lead, 'sentences': sentences},
               open(os.path.join(outdir, 'manifest.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     results.append((prof['id'], order, valid, ok))
 

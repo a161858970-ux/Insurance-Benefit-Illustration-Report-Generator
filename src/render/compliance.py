@@ -34,7 +34,14 @@ def range_binding_lint(text, records):
     for r in records:
         if not r.get('is_range'):
             continue
-        st = r.get('range_struct') or {}
+        st = r.get('range_struct')
+        if not st:
+            # 兼容：无结构化区间的 is_range 记录，从 tokens 集回退构造（min/max/中值）
+            rt0 = sorted(int(x) for x in (r.get('range_tokens') or set()))
+            if not rt0:
+                continue
+            st = {'start': str(rt0[0]), 'end': str(rt0[-1]),
+                  'n': str(rt0[1]) if len(rt0) == 3 else None}
         rt_disp = '、'.join(x for x in (st.get('start'), st.get('end'), st.get('n')) if x)
         prefix = f"{r['field']}@{r['key']}"
         for sent in sentences:
