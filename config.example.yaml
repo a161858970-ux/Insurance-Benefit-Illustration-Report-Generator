@@ -1,0 +1,13 @@
+# report-generator 配置 —— 唯一运行配置（不做环境变量）
+# MiMo API（xiaomi）key 复制自 hermes .env（XIAOMI_API_KEY），base_url 与 hermes config.yaml 一致
+llm:
+  provider: xiaomi
+  base_url: https://api.xiaomimimo.com/v1
+  api_key: <在此填入 XIAOMI_API_KEY>
+  # model 由探活决定，见 DECISIONS.md；探活结果回填此处
+  model: mimo-v2.5-pro
+  proxy: http://127.0.0.1:7897   # Clash Verge；直连失败时显式走代理
+data:
+  # 相对本目录的只读材料路径（禁止符号链接）
+  materials: ../保险运营程序设计与实践_作业材料
+  benefit_data: ../保险运营程序设计与实践_作业材料/利益演示数据
