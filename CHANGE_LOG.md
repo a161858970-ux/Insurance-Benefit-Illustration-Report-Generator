@@ -42,3 +42,9 @@
 - H5 交互页：切画像联动 reorder、切年度图表/表格高亮、JSON 动态数据、data-source 回溯、六道 lint 复用（D052）
 - 三个新缺陷修复：趸交 hints 平局（D047）、单点 range 过苛（D048）、消歧跨行污染（D049）
 - 终态：final_verify 12/12 全过、6 防线脚本全 0、身故 7/7、边界年 7/7
+
+## 2026-09-24 窗口结项收尾
+- 全量体检：26 个 py 编译 0 错；7 验证脚本（6 防线 + final_verify）fresh 子进程全 exit=0
+- git status clean、config.yaml 未被跟踪、无临时/调试残留（_tmp 脚本已清）
+- README.md 从占位（3 字节）更新为交接入口：运行命令、验证入口、进度表、M5 下一步、硬约定、踩坑速查
+- 当前状态：M1–M3 已验收，M4 已交付待验收，M5 未开始（验证报告 VERIFICATION.md 为 M5 主缺口）
