@@ -167,7 +167,7 @@ else:
     profile_text = (f"被保险人为 {meta['年龄']} 岁{'男士' if meta['性别']=='男' else '女士'}，投保人即本人，"
                     "首次接触保险，不懂金融术语；关心投入是否确定、现金价值如何逐年增长、需要用钱时能拿到多少。")
 
-tmpl = open(os.path.join(ROOT, 'prompts', 'narrative_v5.md'), encoding='utf-8').read()
+tmpl = open(os.path.join(ROOT, 'prompts', 'narrative_v6.md'), encoding='utf-8').read()
 user_prompt = tmpl.replace('{profile_text}', profile_text).replace('{summary_text}', summary_text)
 
 resp = llm.chat('你是保险利益演示说明文案撰写者，只做表达不做计算。', user_prompt,

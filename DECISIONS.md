@@ -36,3 +36,9 @@
 - D034 提示词 v2→v5：历史三次版本替换锚写成 'prompts/narrative_vX.md'，而代码是 os.path.join(ROOT,'prompts','narrative_vX.md') 分参数——静默未命中，M1 后期实际一直用 v2；v5 新增禁数据外功能断言（保单贷款类）、合计同句带区间 / 替换失败无报错是隐形事故，assert 化后才暴露 / 现行 v5，v1-v4 留档
 - D035 场景优先级选择 bug：next(f if any endtail) 按文件序命中即返回，PRIORITY 排序无效——改为 tail 为外层循环；final_verify 打印对全角逗号文件名 IndexError——re.split 兼容半/全角 / 鸿盈/福临门/长城文件名逗号风格不同 / 修复后 7 产品均选中 30,10（长城 30,3）
 - D036 M2 形态检测零人工分支：模块=字段存在性推断（可选模块清单），画像按 (年龄, 有无领取流) 四象限生成，产品由文件名反查目录 / 换产品零改码的证明 = 合成第 8 种字段组合全管线通过 + 7 产品同一 m1_run 管道出稿
+- D037 [M3-①②] 给付流全枚举进 summary（年金/养老金/特别生存金 逐条 起领行+合计行，is_flow 登记），coverage_lint 断言三要素（起/止/年数/合计）全文必现，违规进合规改写循环 / 根因=原循环只取第一条流且 break、特别生存金从未入摘要——长城漏年金流(35–54/9820)、福临门漏特别生存金(37–39/30000)属给付结构缺失 / 坏样本用总控实抓旧稿原文，coverage_source_test 6/6（拦+放对）
+- D038 [M3-③] sanitize 统一剥（源：…）括注、source_lint 断言终稿含"源："即违规；区间标签（区间 …）不含"源："保留 / 福临门稿曾泄漏9处内部源标注，其余8份0处属 sanitize 未覆盖该模式 / 断言入 output_tier_lint 统一由合规循环驱动
+- D039 满期金单点流 range_info 只存 key 不存年数1、range_binding_lint/coverage_lint 按 trace 归属消歧 / 单点流曾强求裸"1"出现（系统性误伤）；保费10,000曾被误判为满期金合计句（同值无消歧）/ 修后 9/9 终验全过
+- D040 提示词 v6：禁"保证利益演示"措辞（保证部分不得出现"演示"二字）/ LLM 曾用该词组让档位断言的窗口规则失效（3轮改写未收敛）/ 违规两份按 v6 重生成首版即过
+- D041 m3_compare：reorder（模块顺序，结构化 JSON 数组，白名单排列校验，非法回退默认序，m_disclaimer 强制末位）+ narrative_modular（lead+每模块一句，JSON），模块数据块由代码从 rows 组装 / 两层分离要求顺序由 LLM 定、数字块不得经 LLM / reorder 实测输出合法排列；思考模型 max_tokens 必须给 reasoning 预算（300→3200 实测 finish_reason=length 截断致空回复）
+- D042 git：config.yaml（含 API key）永不入库（.gitignore+config.example.yaml 模板）；重大步骤完成即 commit 并 push 到 GitHub / 总控要求 / remote=https://github.com/a161858970-ux/Insurance-Benefit-Illustration-Report-Generator

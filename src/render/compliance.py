@@ -34,25 +34,28 @@ def range_binding_lint(text, records):
     for r in records:
         if not r.get('is_range'):
             continue
-        rt = sorted(r.get('range_tokens') or set(), key=len)  # 短的在前：年数2位、起止2-3位
+        st = r.get('range_struct') or {}
+        rt_disp = '、'.join(x for x in (st.get('start'), st.get('end'), st.get('n')) if x)
+        prefix = f"{r['field']}@{r['key']}"
         for sent in sentences:
             if not sent.strip():
                 continue
-            for m in NUM_RE.finditer(sent):
-                core = m.group(0).replace(',', '').replace('，', '')
-                stripped = core.rstrip('0').rstrip('.') if '.' in core else core
-                if core in r['variants'] or stripped in r['variants']:
-                    toks = {mm.group(0).replace(',', '') for mm in NUM_RE.finditer(sent)}
-                    toks |= {t.rstrip('0').rstrip('.') for t in list(toks) if '.' in t}
-                    # 起止同现，或“年度数+任一起止”出现 → 有界
-                    start, end = rt[0], rt[-1]
-                    n_year = [t for t in rt if len(t) <= 2]
-                    has_bound = (start in toks and end in toks) or \
-                                (n_year and n_year[0] in toks and (start in toks or end in toks))
-                    if not has_bound:
-                        violations.append({'kind': 'range', 'clause': sent.strip(),
-                                           'num': m.group(0),
-                                           'need': f'合计数字须同句带区间标签（要素: {"、".join(sorted(rt))}）'})
+            # 归属消歧：只有被 trace 判定归属本记录的数字才触发同句检查（防同值误伤）
+            _, mt = trace(sent, records)
+            owned = [(raw, d) for raw, d in mt
+                     if d.startswith(prefix) and raw.replace(',', '').replace('，', '') in r['variants']]
+            if not owned:
+                continue
+            toks = {mm.group(0).replace(',', '') for mm in NUM_RE.finditer(sent)}
+            toks |= {t.rstrip('0').rstrip('.') for t in list(toks) if '.' in t}
+            start, end, n = st.get('start'), st.get('end'), st.get('n')
+            has_bound = (start in toks and end in toks) or \
+                        (n and n in toks and (start in toks or end in toks)) or \
+                        (n is None and start in toks)   # 单点流：key 同现即界
+            if not has_bound:
+                violations.append({'kind': 'range', 'clause': sent.strip(),
+                                   'num': owned[0][0],
+                                   'need': f'合计数字须同句带区间标签（要素: {rt_disp}）'})
     return violations
 
 
@@ -71,7 +74,7 @@ def coverage_lint(text, records):
             continue
         rt = r.get('range_tokens') or set()
         miss_toks = sorted(t for t in rt if t not in toks)
-        hit_sum = any(v in toks for v in r['variants'])
+        hit_sum = any(v in toks for v in r['variants'])   # 合计值存在即认（同值碰撞可接受）
         if miss_toks or not hit_sum:
             need = []
             if miss_toks:

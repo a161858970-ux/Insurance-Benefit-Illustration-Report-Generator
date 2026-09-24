@@ -55,6 +55,14 @@ def build_summary(rec, meta, _unused=None):
         if range_info:
             r['is_range'] = True
             r['range_tokens'] = {str(x) for x in range_info}
+            # 结构化区间：同句判断用 start/end/n（防 set 排序把年数当起止）
+            ri = [str(x) for x in range_info]
+            if len(ri) == 1:
+                r['range_struct'] = {'start': ri[0], 'end': ri[0], 'n': None}
+            else:
+                nums = sorted(int(x) for x in ri)
+                r['range_struct'] = {'start': str(nums[0]), 'end': str(nums[-1]),
+                                     'n': str(nums[1]) if len(nums) == 3 else None}
         if is_flow:
             r['is_flow'] = True
         forms = {str(int(round(value))) if abs(value - round(value)) < 1e-9 else f"{value}",
@@ -152,7 +160,7 @@ def build_summary(rec, meta, _unused=None):
         if nz:
             mk = nz[-1][0]
             add(f'满期金（{mk} 岁）', nz[-1][1], '满期金', mk, {'满期', '一次性', str(mk)},
-                extra=f'（单点给付 {mk} 岁）', is_flow=True, range_info=(mk, mk, 1))
+                extra=f'（单点给付 {mk} 岁）', is_flow=True, range_info=(mk,))   # 单点流：只存 key，不存年数1
 
     # 生存总利益两档（满期年）——档位词由 tier_of 生成
     for tier, field in (('guaranteed', '红利.guaranteed.生存总利益'), ('rate', '红利.rate.生存总利益')):

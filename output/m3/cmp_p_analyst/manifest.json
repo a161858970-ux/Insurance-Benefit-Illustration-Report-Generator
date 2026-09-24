@@ -1,0 +1,16 @@
+{
+ "product": "国寿鑫益延年养老年金保险（分红型）",
+ "fn": "国寿鑫益延年养老年金保险（分红型）,男，30，10.json",
+ "profile": "p_analyst",
+ "order": [
+  "m_irr",
+  "m_guarantee",
+  "m_dividend",
+  "m_cashflow",
+  "m_basics",
+  "m_death",
+  "m_claims",
+  "m_disclaimer"
+ ],
+ "order_valid": true
+}

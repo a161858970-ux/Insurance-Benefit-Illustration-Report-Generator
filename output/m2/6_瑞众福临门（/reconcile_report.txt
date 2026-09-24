@@ -16,20 +16,20 @@
 [4] 跳过 HTML 对拍（参考成品仅对应 (男,0,1) 场景）
 [5] 图已出: chart_benefits.svg / chart_death.svg（身故金递减点 0 个，原值未修复）
 [6] LLM: model=mimo-v2.5-pro base=https://api.xiaomimimo.com/v1
-[6] 摘要生成: 数字行 17 条，回引三元组记录 23 条，tier_lint=通过
-    探活/调用成功: model_returned=mimo-v2.5-pro sec=23.8 proxy=False usage={'completion_tokens': 964, 'prompt_tokens': 1816, 'total_tokens': 2780, 'completion_tokens_details': {'reasoning_tokens': 542}, 'prompt_tokens_details': {'cached_tokens': 0}}
-[6b] 数字回引校验: ok=True retried=0 degraded=False matched=36 unmatched=0
-      √ ('31', '年龄/保单年度豁免')
-      √ ('40', '年龄/保单年度豁免')
-      √ ('10,000', '保费@31..40[guar]')
-      √ ('31', '年龄/保单年度豁免')
-      √ ('40', '年龄/保单年度豁免')
+[6] 摘要生成: 数字行 19 条，回引三元组记录 27 条，tier_lint=通过
+    探活/调用成功: model_returned=mimo-v2.5-pro sec=29.6 proxy=False usage={'completion_tokens': 835, 'prompt_tokens': 1940, 'total_tokens': 2775, 'completion_tokens_details': {'reasoning_tokens': 554}, 'prompt_tokens_details': {'cached_tokens': 0}}
+[6b] 数字回引校验: ok=True retried=0 degraded=False matched=26 unmatched=0
+      √ ('1', '保费@31..40(万元换算)[guar]')
       √ ('10', '累交保费@40(万元换算)[guar]')
-      √ ('100,000', '累交保费@40[guar]')
+      √ ('10', '累交保费@40(万元换算)[guar]')
+      √ ('7', '现金价值@105(万元换算)[guar]')
+      √ ('37', '年龄/保单年度豁免')
+      √ ('3', '特别生存金@37..39(万元换算)[guar]')
+      √ ('37', '年龄/保单年度豁免')
+      √ ('39', '年龄/保单年度豁免')
+      √ ('1', '特别生存金@37(万元换算)[guar]')
       √ ('40', '年龄/保单年度豁免')
-      √ ('31', '年龄/保单年度豁免')
-      √ ('40', '年龄/保单年度豁免')
-[7] 禁用词扫描（11 词表）: 合规改写 0 轮 → 最终命中 0 处
+[7] 禁用词扫描（11 词表）: 合规改写 1 轮 → 最终命中 0 处
 [7c] 输出层档位断言: 最终违规 0 处（演示语境句内的保证档数字）
 [7b] 免责去重: 正文残留免责短语 0 次（须=0）、'仅供教学研究使用' 1 次（须=1）
-[9] 终稿回引复核: unmatched=0 matched=36
+[9] 终稿回引复核: unmatched=0 matched=28

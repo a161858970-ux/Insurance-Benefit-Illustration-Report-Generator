@@ -73,15 +73,15 @@ def module_block(mid, S, meta, rec, by, sentences):
         sd = {int(k): v for k, v in rec['身故保险金'].items() if v not in ('-',)}
         if sd:
             ks = sorted(sd)
-            parts.append(f"- 身故保险金（首年末 {ks[0]} 岁）：{sd[ks[0]]:,} 元")
+            parts.append(f"- 身故保险金（首年末 {ks[0]} 岁）：{int(float(sd[ks[0]])):,} 元")
             cliff = [r for r in rows if '身故保险金在' in r['text']]
             parts += [r['text'] for r in cliff]
-            parts.append(f"- 身故保险金（末年 {ks[-1]} 岁）：{sd[ks[-1]]:,} 元")
+            parts.append(f"- 身故保险金（末年 {ks[-1]} 岁）：{int(float(sd[ks[-1]])):,} 元")
             if '全残保险金' in rec:
                 gd = {int(k): v for k, v in rec['全残保险金'].items() if v not in ('-',)}
                 if gd:
                     gk = sorted(gd)
-                    parts.append(f"- 全残保险金（首年末 {gk[0]} 岁 {gd[gk[0]]:,} 元 / 末年 {gk[-1]} 岁 {gd[gk[-1]]:,} 元；与身故保险金同口径给付）")
+                    parts.append(f"- 全残保险金（首年末 {gk[0]} 岁 {int(float(gd[gk[0]])):,} 元 / 末年 {gk[-1]} 岁 {int(float(gd[gk[-1]])):,} 元；与身故保险金同口径给付）")
     elif mid == 'm_claims':
         drops = by['给付比例变化年']
         parts.append(f"- 首年：{by['首年']} 岁 | 缴费期满年：{by['缴费期满年']} 岁 | 起领年：{by['起领年']} 岁 | 满期年：{by['满期年']} 岁")

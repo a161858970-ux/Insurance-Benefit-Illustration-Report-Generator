@@ -28,3 +28,10 @@
 - 合成第 8 种字段组合：全管线零改码通过（loader→边界年→勾稽 A105/B105/C208→summary+tier_lint→图→自回溯 76/0）
 - m2_run 全链 exit=0：84 勾稽基线一致、7 产品 30,10/30,3 场景报告、final_verify 9 份全部通过
 - 老两份（区间断言前）旧稿备份为 narrative_final_v1_区间断言前.txt，重生成后过全部新断言
+
+## 2026-09-24 M3 个性化
+- ①② 给付流全枚举+coverage_lint（长城漏年金流/福临门漏特别生存金 修）；③ 源标注剥除+source_lint（福临门9处泄漏 修）；坏样本 coverage_source_test 6/6
+- 断言设计缺陷自查修：单点流'1'误伤、同值无消歧误伤（D039）；提示词 v6 禁"保证利益演示"措辞（D040）
+- 场景多样性：7 产品分配表 0/30/45岁×男女×1/3/10年交；9 份终验 全过（含覆盖/源/档位/区间/回引/禁词/免责）
+- 画像3份（profiles.jsonl）+ reorder 结构化重排 + narrative_modular + 模块代码组装（report.py）
+- git：repo 初始化，config.yaml 排除入库，重大步骤 commit+push
