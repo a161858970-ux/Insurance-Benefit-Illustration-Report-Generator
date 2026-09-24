@@ -42,3 +42,13 @@
 - D040 提示词 v6：禁"保证利益演示"措辞（保证部分不得出现"演示"二字）/ LLM 曾用该词组让档位断言的窗口规则失效（3轮改写未收敛）/ 违规两份按 v6 重生成首版即过
 - D041 m3_compare：reorder（模块顺序，结构化 JSON 数组，白名单排列校验，非法回退默认序，m_disclaimer 强制末位）+ narrative_modular（lead+每模块一句，JSON），模块数据块由代码从 rows 组装 / 两层分离要求顺序由 LLM 定、数字块不得经 LLM / reorder 实测输出合法排列；思考模型 max_tokens 必须给 reasoning 预算（300→3200 实测 finish_reason=length 截断致空回复）
 - D042 git：config.yaml（含 API key）永不入库（.gitignore+config.example.yaml 模板）；重大步骤完成即 commit 并 push 到 GitHub / 总控要求 / remote=https://github.com/a161858970-ux/Insurance-Benefit-Illustration-Report-Generator
+- D043 [M4] 内部 LLM 全量切换 mimo-v2.5-pro → mimo-v2.6-flash（总控指令）/ v2-pro 思考长、单次20-120s 是耗时主因之一 / 2026-09-24 实测探活：model_returned=mimo-v2.6-flash、最小调用 200、reasoning_tokens=12、中任务 2.8s；6 脚本+12 份报告按新模型全量重验
+- D044 [M4] summary 新增保障责任行（身故首末年、全残首末年）标 is_resp，responsibility_lint 断言：字段存在则值必须出现在终稿——身故/全残由代码断言而非 LLM 自愿 / 总控 M4-1 / 并入 output_tier_lint 五道→六道统一通道
+- D045 [M4] 9 份基础报告升级模块化（m_death/m_claims 进正式产物），m4_run 参数化复用 m3 管道，新画像 p_default 中性 / 单段报告身故/全残靠 LLM 自愿且模块块直拼数字无 record 不可回引 / 保障行入 records 后回引+断言双闭环
+- D046 [M4] H5 数据 JSON 动态加载：data.json 由渲染层生成（模块文本+各画像 order/lead/句+年度序列带 data-source），页面零硬编码数值；切画像=reorder 输出重排 DOM，切年度=图表/表格高亮联动；可见文本抽取后复用同一套 lint（不另写）
+- D047 趸交保费行 hints 加"趸交/当年"特征词 / 剥源后趸交保费与累交保费同值 hints 平局（块行 LLM 改不掉，3 轮改写全败）/ 修复后单场景 6.83s 首版全过
+- D048 range_binding 跳过单点流（start==end，如满期金）/ 单点无区间歧义、coverage 已管呈现，曾强求同句写"105岁"致 3 轮改写不收敛 / 单点流走 coverage，求和流走区间绑定
+- D049 trace 消歧全部规则限定 token 所在行内（规则0 源声明 field+key 精确、hints 打分、距离决胜）/ ±25 跨行邻域被上下行字段词双向污染（中意"生存总利益"块行被邻行"现金价值峰值""身故"搅成 AMBIG，改写修不掉因为是块行）/ 对抗8/8+6脚本全绿
+- D050 flash 接入：enable_thinking=false 全局关思考（长约束 JSON 任务 reasoning 会爆 4384 token/130s，关后单次 ~7s），改写轮 per-call thinking=True 质量优先（关思考版改写 3 轮不收敛、开思考 1 轮过）/ config bool 解析曾把 'false' 当字符串致开关失效（bool('false')=True）/ 单份报告 130s→6.8s
+- D051 9 份正式产物模块化（modular_run 参数化管道，p_default 中性画像），旧单段稿备份 narrative_final_单段版.txt；保障责任行 is_resp+responsibility_lint 使身故/全残由代码断言 / M4-1/2 / 身故 7/7、边界年 7/7、全残产物 3/3（中意/鑫颐金生/福临门）
+- D052 H5：data.json 动态数据（模块行级 data-source、序列点级 source、关键值数字级 source）+ index.html 零硬编码（模板换 1e4 防误判）；可见文本复用同一套六道 lint；h5_lint_test 6 项（回溯 375/375+34/34、0 硬编码、lint 全0、data-source 机制、交互机制）/ M4-3/4

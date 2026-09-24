@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>利益演示报告 · 交互页</title>
+<style>
+  :root { --fg:#1a1a1a; --mut:#666; --acc:#1f6feb; --warn:#d29922; --bg:#fff; --card:#f7f8fa; --line:#e3e5e8; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Microsoft YaHei",system-ui,sans-serif; color:var(--fg); background:var(--bg); }
+  header { padding:18px 24px; border-bottom:2px solid var(--acc); display:flex; flex-wrap:wrap; gap:16px; align-items:baseline; }
+  header h1 { font-size:20px; margin:0; }
+  header .meta { color:var(--mut); font-size:13px; }
+  .controls { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line); padding:10px 24px; display:flex; gap:20px; flex-wrap:wrap; align-items:center; z-index:5; }
+  .controls label { font-size:13px; color:var(--mut); }
+  .controls select, .controls input[type=range] { font-size:14px; }
+  #yearLabel { font-weight:bold; color:var(--acc); min-width:64px; display:inline-block; }
+  main { max-width:980px; margin:0 auto; padding:16px 24px 60px; }
+  #lead { background:var(--card); border-left:4px solid var(--acc); padding:12px 16px; font-size:15px; line-height:1.7; margin:14px 0; }
+  .mod { border:1px solid var(--line); border-radius:8px; margin:14px 0; overflow:hidden; }
+  .mod h2 { font-size:15px; margin:0; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); }
+  .mod .body { padding:8px 16px 12px; }
+  .mod .body p, .mod .body .ln { font-size:14px; line-height:1.9; margin:4px 0; }
+  .sent { color:#333; font-style:normal; background:#fbfbfc; padding:2px 6px; border-radius:4px; display:block; margin-bottom:6px; }
+  .ln.hl { background:#fff6dd; border-radius:4px; }
+  .chartbox { border:1px solid var(--line); border-radius:8px; padding:10px; margin:14px 0; }
+  svg text { font-size:11px; fill:var(--mut); }
+  .spotgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px; margin:10px 0; }
+  .spot { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:8px 10px; font-size:13px; }
+  .spot b { font-size:16px; display:block; margin-top:2px; }
+  .spot.hl { border-color:var(--acc); box-shadow:0 0 0 2px #1f6feb33; }
+  .tier-demo { color:var(--warn); }
+  table.yr { border-collapse:collapse; width:100%; font-size:13px; }
+  table.yr th, table.yr td { border:1px solid var(--line); padding:5px 8px; text-align:right; }
+  table.yr th { background:var(--card); }
+  table.yr tr.hl { background:#fff6dd; font-weight:bold; }
+  footer { color:var(--mut); font-size:12px; border-top:1px solid var(--line); padding:14px 24px; line-height:1.8; }
+  .num { font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="pTitle">利益演示报告</h1>
+  <span class="meta" id="pMeta"></span>
+</header>
+<div class="controls">
+  <label>客户画像 <select id="profileSel"></select></label>
+  <label>保单年度（年龄） <input id="yearRange" type="range" style="width:260px"> <span id="yearLabel"></span></label>
+  <span class="meta" id="orderNow"></span>
+</div>
+<main>
+  <div id="lead"></div>
+  <div class="chartbox"><svg id="chart" width="920" height="360"></svg></div>
+  <div class="spotgrid" id="spots"></div>
+  <div id="mods"></div>
+  <table class="yr" id="yrTable"><thead><tr><th>年龄</th><th>累交保费</th><th>现金价值</th><th>生存总利益(保证)</th><th>生存总利益(演示)</th><th>身故保险金</th></tr></thead><tbody></tbody></table>
+</main>
+<footer id="foot"></footer>
+<script>
+// ===== 数据全部来自 data.json，页面零硬编码业务数值 =====
+let D = null, curProfile = null, curYear = null;
+const $ = s => document.querySelector(s);
+const fmt = v => (Math.abs(v - Math.round(v)) < 1e-9) ? Number(v).toLocaleString('en-US')
+                                                       : Number(v).toFixed(2).replace(/\.?0+$/, '');
+const src = s => s ? ` data-source="${s}"` : '';
+
+fetch('data.json').then(r => r.json()).then(d => { D = d; init(); });
+
+function init() {
+  $('#pTitle').textContent = D.product;
+  const m = D.meta;
+  $('#pMeta').textContent = `${m['性别']} · 投保${m['年龄']}岁 · 交费${m['交费期间']}年 · (key=保单年度末年龄)`;
+  $('#foot').textContent = D.disclaimer + ' 数据来源：' + D.data_source;
+  const sel = $('#profileSel');
+  D.profiles.forEach((p, i) => {
+    const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; sel.appendChild(o);
+  });
+  sel.onchange = () => { curProfile = sel.value; renderProfile(); };
+  curProfile = D.profiles[0].id; sel.value = curProfile;
+
+  const ages = D.ages, r = $('#yearRange');
+  r.min = ages[0]; r.max = ages[ages.length - 1]; r.step = 1;
+  curYear = ages[0]; r.value = curYear;
+  r.oninput = () => { curYear = Number(r.value); renderYear(); };
+  renderProfile(); renderChart(); renderSpots(); renderTable();
+  renderMods();
+}
+
+function profileObj(id) { return D.profiles.find(p => p.id === id); }
+
+function renderProfile() {
+  const p = profileObj(curProfile);
+  $('#lead').innerHTML = `<span${src('画像:' + p.id)}>${esc(p.lead)}</span>`;
+  $('#orderNow').textContent = '模块序(LLM reorder): ' + p.order.map(x => x.slice(2)).join(' → ');
+  renderMods(); renderYear();
+}
+
+// 切画像 → 按该画像 order 重排模块 DOM（顺序来自 data.json 的 reorder 输出，非写死）
+function renderMods() {
+  const p = profileObj(curProfile);
+  const box = $('#mods'); box.innerHTML = '';
+  p.order.forEach(mid => {
+    const m = D.modules[mid]; if (!m) return;
+    const div = document.createElement('section');
+    div.className = 'mod'; div.dataset.mid = mid;
+    const sent = (p.sentences || {})[mid];
+    let html = `<h2>${esc(m.title)}</h2><div class="body">`;
+    if (sent) html += `<span class="sent" title="LLM 画像句"${src('LLM:' + mid)}>${esc(sent)}</span>`;
+    m.lines.forEach(l => { html += `<div class="ln"${src(l.source)}>${esc(l.text)}</div>`; });
+    html += '</div>';
+    div.innerHTML = html;
+    box.appendChild(div);
+  });
+  renderYear();
+}
+
+// 切年度 → 表格行高亮 + 图表竖线 + 关键值卡高亮（该年龄的数字）
+function renderYear() {
+  $('#yearLabel').textContent = curYear + ' 岁';
+  document.querySelectorAll('#yrTable tbody tr').forEach(tr => {
+    tr.classList.toggle('hl', Number(tr.dataset.age) === curYear);
+  });
+  const tr = document.querySelector(`#yrTable tbody tr[data-age="${curYear}"]`);
+  if (tr) tr.scrollIntoView({ block: 'nearest' });
+  renderChart(); renderSpots();
+}
+
+function renderChart() {
+  const svg = $('#chart'); svg.innerHTML = '';
+  const W = 920, H = 360, L = 64, R = 16, T = 18, B = 34;
+  const ages = D.ages;
+  const all = D.series.flatMap(s => s.points.map(p => p.v));
+  const vmax = Math.max(...all) * 1.05, vmin = 0;
+  const X = a => L + (a - ages[0]) / Math.max(1, ages[ages.length - 1] - ages[0]) * (W - L - R);
+  const Y = v => H - B - (v - vmin) / (vmax - vmin) * (H - T - B);
+  const ns = 'http://www.w3.org/2000/svg';
+  const el = (n, at, txt) => { const e = document.createElementNS(ns, n);
+    for (const k in at) e.setAttribute(k, at[k]); if (txt != null) e.textContent = txt; svg.appendChild(e); return e; };
+  for (let i = 0; i <= 4; i++) {
+    const v = vmin + (vmax - vmin) * i / 4;
+    el('line', { x1: L, y1: Y(v), x2: W - R, y2: Y(v), stroke: '#eee' });
+    el('text', { x: L - 6, y: Y(v) + 4, 'text-anchor': 'end' }, fmt(v / 1e4) + '万');
+  }
+  const stepA = Math.max(1, Math.round(ages.length / 8));
+  for (let a = ages[0]; a <= ages[ages.length - 1]; a += stepA)
+    el('text', { x: X(a), y: H - B + 16, 'text-anchor': 'middle' }, a + '岁');
+  const colors = { prem: '#999', cv: '#1f6feb', st_g: '#2da44e', st_r: '#d29922', death: '#c94f4f' };
+  D.series.forEach(s => {
+    if (!s.points.length) return;
+    const dstr = s.points.map((p, i) => (i ? 'L' : 'M') + X(p.age).toFixed(1) + ',' + Y(p.v).toFixed(1)).join(' ');
+    el('path', { d: dstr, fill: 'none', stroke: colors[s.id] || '#666', 'stroke-width': 2,
+                 'stroke-dasharray': s.dash ? '6 4' : '' });
+  });
+  // 当前年高亮竖线 + 各序列点
+  el('line', { x1: X(curYear), y1: T, x2: X(curYear), y2: H - B, stroke: '#1f6feb', 'stroke-width': 1.5, 'stroke-dasharray': '4 3' });
+  el('text', { x: X(curYear) + 4, y: T + 12, fill: '#1f6feb' }, curYear + '岁');
+  D.series.forEach(s => {
+    const p = s.points.find(q => q.age === curYear);
+    if (p) el('circle', { cx: X(p.age), cy: Y(p.v), r: 4, fill: colors[s.id] || '#666' })
+          .appendChild(Object.assign(document.createElementNS(ns, 'title'), { textContent: `${s.name} ${fmt(p.v)} (${p.source})` }));
+  });
+  let ly = T + 4;
+  D.series.forEach(s => {
+    el('rect', { x: W - R - 176, y: ly, width: 12, height: 10, fill: colors[s.id] || '#666' });
+    el('text', { x: W - R - 160, y: ly + 9, fill: '#333' }, s.name);
+    ly += 15;
+  });
+}
+
+function renderSpots() {
+  const box = $('#spots'); box.innerHTML = '';
+  D.spotlights.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'spot';
+    // 高亮与当前年龄同 key 的数字
+    const key = s.source.split('@')[1];
+    if (key && (key === String(curYear) || (key.includes('..') && inRange(key, curYear)))) div.classList.add('hl');
+    div.innerHTML = `<span${src(s.source)}>${esc(s.source.split('@')[0])}${s.wanyuan ? '(万元)' : ''}<b class="num">${esc(s.value)}</b></span>`;
+    box.appendChild(div);
+  });
+}
+function inRange(k, age) { const [a, b] = k.split('..').map(Number); return age >= a && age <= b; }
+
+function renderTable() {
+  const tb = $('#yrTable tbody'); tb.innerHTML = '';
+  const idx = {};
+  D.series.forEach(s => { idx[s.id] = {}; s.points.forEach(p => idx[s.id][p.age] = p); });
+  D.ages.forEach(a => {
+    const tr = document.createElement('tr'); tr.dataset.age = a;
+    const cells = ['age', 'prem', 'cv', 'st_g', 'st_r', 'death'];
+    cells.forEach(id => {
+      const td = document.createElement('td');
+      if (id === 'age') { td.textContent = a; }
+      else { const p = idx[id][a];
+        td.textContent = p ? fmt(p.v) : '—';
+        if (p) td.setAttribute('data-source', p.source); }
+      tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  });
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+</script>
+</body>
+</html>

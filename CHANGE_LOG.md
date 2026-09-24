@@ -35,3 +35,10 @@
 - 场景多样性：7 产品分配表 0/30/45岁×男女×1/3/10年交；9 份终验 全过（含覆盖/源/档位/区间/回引/禁词/免责）
 - 画像3份（profiles.jsonl）+ reorder 结构化重排 + narrative_modular + 模块代码组装（report.py）
 - git：repo 初始化，config.yaml 排除入库，重大步骤 commit+push
+
+## 2026-09-24 M4 多模态+合规收口
+- 模型切换 mimo-v2.6-flash（D043，探活 model_returned 实测）；enable_thinking 分层（首版关/改写开，D050）
+- 9 份单段→模块化（m_death/m_claims 进正式产物，responsibility_lint 代码断言）；全残分支真实产物 3/3（D051）
+- H5 交互页：切画像联动 reorder、切年度图表/表格高亮、JSON 动态数据、data-source 回溯、六道 lint 复用（D052）
+- 三个新缺陷修复：趸交 hints 平局（D047）、单点 range 过苛（D048）、消歧跨行污染（D049）
+- 终态：final_verify 12/12 全过、6 防线脚本全 0、身故 7/7、边界年 7/7

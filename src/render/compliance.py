@@ -42,6 +42,8 @@ def range_binding_lint(text, records):
                 continue
             st = {'start': str(rt0[0]), 'end': str(rt0[-1]),
                   'n': str(rt0[1]) if len(rt0) == 3 else None}
+        if st.get('start') == st.get('end'):
+            continue   # 单点流（如满期金）无区间歧义，coverage 已管其呈现；区间绑定只管求和流
         rt_disp = '、'.join(x for x in (st.get('start'), st.get('end'), st.get('n')) if x)
         prefix = f"{r['field']}@{r['key']}"
         for sent in sentences:
@@ -101,6 +103,26 @@ def source_lint(text):
     return []
 
 
+def responsibility_lint(text, records):
+    """M4-①：字段存在（有 is_resp 记录）则其值必须出现在终稿——身故/全残代码断言。"""
+    violations = []
+    norm = re.sub(r'(?<=\d)-(?=\d)', '\u2013', text)
+    toks = set()
+    for m in NUM_RE.finditer(norm):
+        c = m.group(0).replace(',', '').replace('，', '')
+        toks.add(c)
+        if '.' in c:
+            toks.add(c.rstrip('0').rstrip('.'))
+    for r in records:
+        if not r.get('is_resp'):
+            continue
+        if not any(v in toks for v in r['variants']):
+            violations.append({'kind': 'responsibility', 'clause': f"保障责任 {r['field']}@{r['key']}",
+                               'num': '、'.join(sorted(r['variants'])[:3]),
+                               'need': f"{r['field']}@{r['key']} 的值须出现在终稿（字段存在即必须呈现）"})
+    return violations
+
+
 def output_tier_lint(text, records, known_years):
     """返回违规列表 [{'clause','num','src'}]；空=通过。
     窗口规则（D028）：子句剥除"不保证"类短语后含"演示" →
@@ -129,4 +151,5 @@ def output_tier_lint(text, records, known_years):
     violations.extend(range_binding_lint(text, records))
     violations.extend(coverage_lint(text, records))
     violations.extend(source_lint(text))
+    violations.extend(responsibility_lint(text, records))
     return violations

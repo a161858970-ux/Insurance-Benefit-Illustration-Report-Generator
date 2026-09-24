@@ -19,6 +19,8 @@ def load_config(path):
                 k, v = k.strip(), v.strip().strip('"').strip("'")
                 if v in ('null', '~', ''):
                     v = None
+                elif v.lower() in ('true', 'false'):
+                    v = (v.lower() == 'true')
                 elif v.startswith('[') or v.startswith('{'):
                     pass
                 else:
@@ -41,13 +43,17 @@ class MiMo:
         self.key = cfg['llm']['api_key']
         self.model = cfg['llm']['model']
         self.proxy = cfg['llm'].get('proxy')
+        self.enable_thinking = bool(cfg['llm'].get('enable_thinking', False))
 
-    def chat(self, system, user, max_tokens=1600, temperature=0.3, retries=2, use_proxy=None):
-        body = json.dumps({
+    def chat(self, system, user, max_tokens=1600, temperature=0.3, retries=2, use_proxy=None, thinking=None):
+        payload = {
             'model': self.model,
             'messages': [{'role': 'system', 'content': system}, {'role': 'user', 'content': user}],
             'max_tokens': max_tokens, 'temperature': temperature,
-        }).encode()
+        }
+        _think = self.enable_thinking if thinking is None else thinking
+        payload['chat_template_kwargs'] = {'enable_thinking': bool(_think)}
+        body = json.dumps(payload).encode()
         if use_proxy is None:
             use_proxy = False
         last_err = None

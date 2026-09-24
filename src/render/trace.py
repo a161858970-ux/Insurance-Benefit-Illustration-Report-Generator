@@ -41,17 +41,24 @@ def trace(text, records, known_years=None):
             if len(cands) == 1:
                 matched.append((raw, _desc(cands[0])))
                 continue
-            # ===== 同值多字段 → 语境消歧 =====
-            left = text[max(0, m.start() - 25):m.start()]
-            right = text[m.end():m.end() + 25]
-            ctx = left + raw + right
+            # ===== 同值多字段 → 语境消歧（全部规则限定 token 所在行内，防跨行邻域污染）=====
+            _ls = text.rfind('\n', 0, m.start()) + 1
+            _le = text.find('\n', m.end())
+            _line = text[_ls:] if _le < 0 else text[_ls:_le]
+            # 行内 token 相对坐标
+            _off = m.start() - _ls
+            left = _line[max(0, _off - 40):_off]
+            right = _line[_off + len(raw):_off + len(raw) + 40]
+            ctx = _line
             after = right[:6].lstrip()
             picked = None
-            # 规则0（最强）：行内"源：FIELD@KEY"自证声明
-            mm_src = re.search(r'源：([^\s（）@]+)@', ctx)
+            # 规则0（最强）：行内"源：FIELD@KEY"自证
+            mm_src = re.search(r'源：([^\s（）@]+)@([0-9][0-9.]*)', _line)
             if mm_src:
-                g = mm_src.group(1)
-                exact = [r for r in cands if r['field'] == g or r['field'].split('.')[-1] == g]
+                g, gk = mm_src.group(1), mm_src.group(2)
+                # field + key 双条件精确（防同 field 不同 key 多候选）
+                exact = [r for r in cands
+                         if (r['field'] == g or r['field'].split('.')[-1] == g) and r['key'] == gk]
                 if len(exact) == 1:
                     picked = exact[0]
             if picked is None and ('万元' in after or '万元' in left[-6:]):
@@ -80,8 +87,8 @@ def trace(text, records, known_years=None):
                     if len(tops) == 1:
                         picked = tops[0]
                     else:
-                        tok_s = len(left)
-                        tok_e = tok_s + len(raw)
+                        tok_s = _off
+                        tok_e = _off + len(raw)
                         def _dist(r):
                             hs = set(r['hints']) | {r['field'].split('.')[-1]}
                             best = 1 << 30

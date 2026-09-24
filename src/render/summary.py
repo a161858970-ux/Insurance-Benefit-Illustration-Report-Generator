@@ -47,7 +47,7 @@ def build_summary(rec, meta, _unused=None):
     rows = []      # {'text','field'} 供 tier_lint
     records = []   # {'field','key','tier','variants':set,'hints':set,'wanyuan':bool}
 
-    def new_rec(field, key, value, hints, wanyuan=False, kind='amount', range_info=None, is_flow=False):
+    def new_rec(field, key, value, hints, wanyuan=False, kind='amount', range_info=None, is_flow=False, is_resp=False):
         if value is None:
             return None
         r = {'field': field, 'key': str(key), 'tier': tier_of(field),
@@ -65,6 +65,8 @@ def build_summary(rec, meta, _unused=None):
                                      'n': str(nums[1]) if len(nums) == 3 else None}
         if is_flow:
             r['is_flow'] = True
+        if is_resp:
+            r['is_resp'] = True
         forms = {str(int(round(value))) if abs(value - round(value)) < 1e-9 else f"{value}",
                  yuan(value), f"{value:,.2f}".rstrip('0').rstrip('.')}
         if '.' in f"{value}":
@@ -73,7 +75,7 @@ def build_summary(rec, meta, _unused=None):
         records.append(r)
         return r
 
-    def add(label, value, field, key, hints, unit='元', extra='', kind='amount', range_info=None, is_flow=False):
+    def add(label, value, field, key, hints, unit='元', extra='', kind='amount', range_info=None, is_flow=False, is_resp=False):
         """生成一行带机器档位词的摘要 + 登记回引记录（含万元换算派生记录）。"""
         if value is None:
             return
@@ -81,7 +83,7 @@ def build_summary(rec, meta, _unused=None):
         tier_word = '（演示、不保证）' if tier == 'demo' else '（保证）'
         text = f"- {label}{tier_word}：{yuan(value)}{unit}（源：{field}@{key}）{extra}"
         rows.append({'text': text, 'field': field})
-        new_rec(field, key, value, hints, kind=kind, range_info=range_info, is_flow=is_flow)
+        new_rec(field, key, value, hints, kind=kind, range_info=range_info, is_flow=is_flow, is_resp=is_resp)
         if abs(value) >= 10000:  # 万元换算：派生记录，继承三元组、绑定本字段（SPEC §2.5）
             r = new_rec(field, key, round(value / 10000, 4), hints | {'万元'}, wanyuan=True)
             if r:
@@ -117,7 +119,8 @@ def build_summary(rec, meta, _unused=None):
                 f'{pks[0]}..{pks[-1]}', {'保费', '年交', '每年', '交费'},
                 extra=f'（交费区间 {pks[0]}–{pks[-1]} 岁、共 {len(pks)} 次）')
         else:
-            add(f'保费（趸交一次，{pks[0]} 岁当年）', prem_nz[pks[0]], '保费', pks[0], {'保费', '趸交', '一次'})
+            add(f'保费（趸交一次，{pks[0]} 岁当年）', prem_nz[pks[0]], '保费', pks[0],
+                {'保费', '趸交', '一次', '当年'})   # 趸交特征词入 hints：防剥源后与累交保费同值平局（D047）
         if len(set(prem_nz.values())) > 1:
             rows[-1]['text'] += '（各年金额见源字段）'
     add('首年末现金价值', num(rec['现金价值'].get(str(k0))), '现金价值', k0, {'现金价值'})
@@ -205,6 +208,21 @@ def build_summary(rec, meta, _unused=None):
         new_rec('身故保险金', b, v2, {'身故', '调整'})
         new_rec('身故保险金', a, round(v1 / 10000, 4), {'身故', '万元'}, wanyuan=True)
         new_rec('身故保险金', b, round(v2 / 10000, 4), {'身故', '万元'}, wanyuan=True)
+
+    # ===== 保障责任行（M4-①）：身故/全残首末年，标 is_resp——字段存在则终稿必现 =====
+    for resp_field in ('身故保险金', '全残保险金'):
+        if resp_field not in rec:
+            continue
+        sv = {int(k): num(v) for k, v in rec[resp_field].items() if num(v) is not None}
+        if not sv:
+            continue
+        sk = sorted(sv)
+        tag = '首年末' if len(sk) > 1 else ''
+        add(f'{resp_field}（{sk[0]} 岁{tag}）', sv[sk[0]], resp_field, sk[0],
+            {resp_field, '身故', '全残', str(sk[0])}, is_resp=True)
+        if len(sk) > 1:
+            add(f'{resp_field}（末年 {sk[-1]} 岁）', sv[sk[-1]], resp_field, sk[-1],
+                {resp_field, '身故', '全残', str(sk[-1])}, is_resp=True)
 
     # ===== blocker 断言：凡"演示"字样必须来自演示档字段 =====
     tier_lint(rows)
